@@ -1,0 +1,229 @@
+<!-- title: Adaptive-RAG 論文導讀｜依問題難度調整檢索策略 -->
+
+<section class="slide cover" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">論文導讀 · 2 / 2</div>
+  <h1>Adaptive-RAG<br><span style="font-size:34px;font-weight:600">先看題目多難，再決定要查多少</span></h1>
+  <p class="muted" style="font-size:20px">Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity<br>
+  Jeong, Baek, Cho, Hwang, Park（KAIST）· NAACL 2024</p>
+  <p><span class="tag">方法論文</span><span class="tag">RAG</span><span class="tag">適應式檢索</span></p>
+  <p class="small muted" style="margin-top:28px">讀完你會知道：這篇在做什麼、為什麼要做、怎麼做、發現了什麼、還缺什麼。<br>操作：← → 鍵或右上角按鈕換頁</p>
+</section>
+
+<section class="slide" data-wiki="wiki/concepts/evidence-retrieval.md wiki/concepts/iterative-retrieval.md">
+  <div class="kicker">先備知識</div>
+  <h2>開始前，先懂兩個名詞</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>RAG <span class="en">檢索增強生成</span></h3>
+      <p>LLM 回答前，先從大量文件中<b>找出相關段落</b>，放進上下文，再生成答案。</p>
+      <p class="muted">好處：LLM 不知道的事，也能靠外部文件回答。</p>
+    </div>
+    <div class="card accent">
+      <h3>多步檢索 <span class="en">Multi-step Retrieval</span></h3>
+      <p>檢索和推理<b>交替好幾輪</b>：每一輪用「原問題＋目前找到的東西」再去查，直到能回答。</p>
+      <p class="muted">多跳問題需要它：後面的證據要靠前一跳的答案才找得到。</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">① 背景：要做什麼</div>
+  <h2>回答問題，有三種策略</h2>
+  <table>
+    <tr><th style="width:200px">策略</th><th style="width:260px">寫法</th><th>特性</th></tr>
+    <tr><td><b>A 不檢索</b></td><td>ā = LLM(q)</td><td>最快；LLM 不知道的事就答不出來</td></tr>
+    <tr><td><b>B 單步</b></td><td>ā = LLM(q, d)</td><td>先檢索一次，再回答</td></tr>
+    <tr><td><b>C 多步</b></td><td>āᵢ = LLM(q, dᵢ, cᵢ)</td><td>檢索、推理重複好幾輪；<b>最強但最貴</b></td></tr>
+  </table>
+  <p class="small muted" style="margin-top:14px">q＝問題、d＝檢索到的文件、cᵢ＝前幾輪的文件與中間答案</p>
+  <p style="margin-top:14px">👉 這篇要做一個<span class="hl">能依每個問題，自動挑策略</span>的問答框架。</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">② 動機：為什麼要做</div>
+  <h2>一種策略打天下，不是浪費就是不夠</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>真實的問題有難有易</h3>
+      <p>多數是簡單問題，例如「巴黎是哪國首都？」<br>偶爾才有複雜的多跳問題。</p>
+    </div>
+    <div class="card warn">
+      <h3>固定策略的代價</h3>
+      <ul class="small"><li>每題都多步 → 簡單題<b>浪費運算</b></li><li>每題都單步／不檢索 → 複雜題<b>答不好</b></li></ul>
+    </div>
+  </div>
+  <h3 style="margin-top:22px">既有的「適應式檢索」也不夠好</h3>
+  <ul class="small">
+    <li>依實體出現頻率決定要不要檢索 → 只有「要／不要」兩種，<b>沒考慮多跳</b></li>
+    <li>依模型輸出決定何時停止 → 太複雜，要跑好幾輪才停</li>
+  </ul>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">③ 欲解決的問題</div>
+  <h2>能不能「先判斷難度，再選策略」？</h2>
+  <div class="card accent" style="padding:28px 32px">
+    <p style="font-size:28px;margin:0">在<b>回答之前</b>，先判斷問題有多難，<br>再選最適合的策略，<span class="hl">同時兼顧準確率與效率</span>。</p>
+  </div>
+  <div class="flow" style="margin-top:30px">
+    <div class="step"><b>簡單</b><span>LLM 自己答</span></div><div class="arrow">·</div>
+    <div class="step"><b>中等</b><span>查一次就夠</span></div><div class="arrow">·</div>
+    <div class="step"><b>複雜</b><span>才值得多步</span></div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">④ 研究方法 1</div>
+  <h2>架構：一個「難度分類器」當分流器</h2>
+  <div class="flow" style="margin-bottom:22px">
+    <div class="step"><b>問題 q</b><span>使用者輸入</span></div>
+    <div class="arrow">→</div>
+    <div class="step" style="border-width:3px"><b>難度分類器</b><span>小型語言模型 <b>T5-Large（770M）</b><br>o = Classifier(q)</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>A</b><span>不檢索</span></div>
+    <div class="step"><b>B</b><span>單步檢索</span></div>
+    <div class="step"><b>C</b><span>多步檢索</span></div>
+  </div>
+  <ul>
+    <li>三種策略<b>共用同一個 LLM 和檢索器</b></li>
+    <li>切換策略時<b>不用改模型參數</b>，只是走不同流程</li>
+  </ul>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">④ 研究方法 2 · 關鍵技巧</div>
+  <h2>沒有「難度」標註資料？自動產生</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>步驟 1：Silver data</h3>
+      <p>三種策略都跑一遍，用<b>「最簡單就答對的那種」</b>當標籤。</p>
+      <p class="small muted">例：不檢索就答對 → A；不檢索錯、單步和多步都對 → B（簡單的優先）</p>
+    </div>
+    <div class="card accent">
+      <h3>步驟 2：Dataset bias</h3>
+      <p>三種都答錯的題目沒有標籤，就看它<b>來自哪種資料集</b>：</p>
+      <ul class="small"><li>單跳資料集 → B</li><li>多跳資料集 → C</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:22px">👉 不需要人工標註，用 cross-entropy loss 訓練分類器。</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md wiki/concepts/adaptive-retrieval.md">
+  <div class="kicker">⑤ 核心概念：用來處理什麼</div>
+  <h2>四個核心概念</h2>
+  <table>
+    <tr><th style="width:300px">概念</th><th>用來處理什麼問題</th></tr>
+    <tr><td><b>適應式檢索</b></td><td>不是每題都需要一樣多的檢索 → 依問題決定</td></tr>
+    <tr><td><b>問題難度</b> query complexity</td><td>把「要不要檢索、檢索幾輪」轉成一個<b>三分類</b>問題</td></tr>
+    <tr><td><b>自動標註</b></td><td>沒有現成的難度標註 → 用「模型答對與否」＋「資料集來源」代替人工</td></tr>
+    <tr><td><b>多步檢索</b></td><td>複雜的多跳問題需要邊推理邊檢索</td></tr>
+  </table>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">⑥ 實驗設計</div>
+  <h2>混合簡單題與難題，模擬真實情境</h2>
+  <div class="cols">
+    <div>
+      <h3>資料集（每個取 500 題）</h3>
+      <ul class="small"><li>單跳：SQuAD v1.1、Natural Questions、TriviaQA</li><li>多跳：MuSiQue、HotpotQA、2WikiMultiHopQA</li></ul>
+      <h3 style="margin-top:16px">共用設定</h3>
+      <ul class="small"><li>檢索器：<b>BM25</b></li><li>LLM：FLAN-T5-XL (3B)、XXL (11B)、<b>GPT-3.5</b></li></ul>
+    </div>
+    <div>
+      <h3>比較對象</h3>
+      <ul class="small"><li>Simple：不檢索、單步</li><li>Adaptive：Adaptive Retrieval、Self-RAG、<b>Adaptive-RAG</b></li><li>Complex：多步</li><li>Oracle：Adaptive-RAG＋完美分類器（上限）</li></ul>
+      <h3 style="margin-top:16px">指標</h3>
+      <ul class="small"><li>效果：EM、F1、Accuracy</li><li>效率：Step（檢索＋生成次數）、相對時間</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">⑦ 主要結果 1 · GPT-3.5（6 個資料集平均）</div>
+  <h2>效果接近多步，成本低很多</h2>
+  <table>
+    <tr><th>方法</th><th>EM</th><th>F1</th><th>Acc</th><th>Step</th><th>相對時間</th></tr>
+    <tr><td>不檢索</td><td class="num">35.77</td><td class="num">48.56</td><td class="num">44.27</td><td class="num">0.00</td><td class="num">0.71</td></tr>
+    <tr><td>單步</td><td class="num">34.73</td><td class="num">46.99</td><td class="num">45.27</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+    <tr><td>Adaptive Retrieval</td><td class="num">35.90</td><td class="num">48.20</td><td class="num">45.30</td><td class="num">0.50</td><td class="num">0.86</td></tr>
+    <tr class="me"><td>Adaptive-RAG</td><td class="num">37.97</td><td class="num">50.91</td><td class="num">48.97</td><td class="num">1.03</td><td class="num">1.46</td></tr>
+    <tr><td>多步</td><td class="num">38.13</td><td class="num">50.87</td><td class="num">49.70</td><td class="num">2.81</td><td class="num">3.33</td></tr>
+    <tr><td>＋完美分類器</td><td class="num">47.70</td><td class="num">62.80</td><td class="num">58.57</td><td class="num">0.50</td><td class="num">1.03</td></tr>
+  </table>
+  <p class="note">Self-RAG 使用 LLaMA2 而非 GPT-3.5，無法直接比較，故未列入（Wiki 頁有完整數字）</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">⑦ 主要結果 2 · 怎麼讀這張表</div>
+  <h2>同樣的 F1，不到一半的時間</h2>
+  <div class="bars" style="margin-top:6px">
+    <p class="small" style="margin:0">F1（越高越好）</p>
+    <div class="row"><span>Adaptive</span><div class="track"><div class="fill" style="width:50.91%"></div></div><span class="val">50.91</span></div>
+    <div class="row"><span>多步</span><div class="track"><div class="fill" style="width:50.87%;background:#8a94a3"></div></div><span class="val">50.87</span></div>
+    <p class="small" style="margin:16px 0 0">相對時間（越低越好，單步 = 1.00）</p>
+    <div class="row"><span>Adaptive</span><div class="track"><div class="fill" style="width:43.8%"></div></div><span class="val">1.46</span></div>
+    <div class="row"><span>多步</span><div class="track"><div class="fill" style="width:100%;background:var(--bad)"></div></div><span class="val">3.33</span></div>
+  </div>
+  <p style="margin-top:10px">👉 如果分類器完美，F1 可以到 <b>62.80</b>、時間只要 <b>1.03</b> → <span class="hl">分類器是關鍵</span>。</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">⑦ 主要結果 3 · 分類器分析（FLAN-T5-XL 實驗）</div>
+  <h2>分類器其實不太準</h2>
+  <div class="cols3">
+    <div class="card warn"><p>整體準確率</p><div class="big bad">54.52%</div></div>
+    <div class="card warn"><p>A（不用檢索）只認對</p><div class="big bad">30.52%</div></div>
+    <div class="card"><p>B / C 準確率</p><div class="big" style="font-size:46px">66.28% / 65.45%</div></div>
+  </div>
+  <ul class="small" style="margin-top:20px">
+    <li>A 常被誤判成 B（約 47%）；C 約 31% 被誤判成 B</li>
+    <li>各類實際耗時：A 0.35 秒、B 3.08 秒、C 27.18 秒 → <b>判對簡單題，能省很多時間</b></li>
+    <li>分類器大小影響不大：60M、223M、770M 的 F1 分別 45.83、45.97、46.94</li>
+  </ul>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">⑧ 研究缺口與限制</div>
+  <h2>還缺什麼？</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>作者自己指出的</h3>
+      <ul class="small">
+        <li>沒有現成的難度標註資料，<b>自動標註可能標錯</b></li>
+        <li>和完美分類器差距很大（F1 62.80 vs 50.91），分類器架構還能改進</li>
+        <li>只分 3 個難度等級</li>
+      </ul>
+    </div>
+    <div class="card warn">
+      <h3>讀者可以再想的</h3>
+      <ul class="small">
+        <li>難度<b>一開始就決定</b>，過程中不再調整；判錯就沒有補救</li>
+        <li>決定「查幾輪」，但沒處理「每輪放幾篇」</li>
+        <li>檢索器只用 BM25</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md wiki/overview.md">
+  <div class="kicker">⑨ 與其他論文的關係</div>
+  <h2>Adaptive-RAG 在整條脈絡中的位置</h2>
+  <table class="small">
+    <tr><th style="width:250px">論文</th><th>關係</th></tr>
+    <tr><td><b>HoVer</b> (2020)</td><td>證明多跳比單跳難；Adaptive-RAG 承認題目有難有易，依難度分配資源</td></tr>
+    <tr><td><b>Adaptive-k</b> (2025)</td><td>Adaptive-RAG 決定「查幾輪」，Adaptive-k 決定「每次放幾篇」，可互補</td></tr>
+    <tr><td><b>Papelo</b> @ FEVER 2024</td><td>「多步策略」用在查核：一直追問到證據夠為止</td></tr>
+    <tr><td><b>AdaGATE</b> (2026, 預印本)</td><td>把 Adaptive-RAG 歸為「決定何時檢索」的方法，自己處理多步後「證據怎麼組合」</td></tr>
+  </table>
+  <p class="small" style="margin-top:18px">👈 上一份簡報：<a href="hover.html">HoVer</a></p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/adaptive-rag.md">
+  <div class="kicker">總結 · 自我檢測</div>
+  <h2>一句話記住這篇</h2>
+  <div class="card accent"><p style="font-size:23px;margin:0">Adaptive-RAG 先用小模型<b>判斷問題難度</b>，再決定不檢索、檢索一次或多步檢索，用<b>不到一半的時間</b>達到接近多步的效果；但分類器準確率只有 54.52%，是最大的改進空間。</p></div>
+  <details><summary>Q1. 分類器的訓練標籤是怎麼來的？</summary><p>先看哪個最簡單的策略答對（silver data），都答錯的再依資料集是單跳（B）或多跳（C）來標。</p></details>
+  <details><summary>Q2. 為什麼說「分類器是關鍵」？</summary><p>換成完美分類器，F1 從 50.91 提升到 62.80，時間還更短。</p></details>
+  <details><summary>Q3. 這個方法最大的弱點是什麼？</summary><p>難度一開始就決定，判錯（例如 C 判成 B）就沒有機會補救。</p></details>
+</section>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HoVer 論文導讀｜多跳事實查核資料集</title>
+<style>
+:root {
+  --ink:#1c2430; --muted:#5b6473; --line:#dcd7cc; --paper:#fbfaf7; --bg:#e9e6df;
+  --accent:#0f6b66; --accent-soft:#e3f1ef; --warn:#b45309; --warn-soft:#fdf1e2;
+  --bad:#b42318; --good:#1f7a3f;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif; }
+#stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+#deck { width:1280px; height:720px; position:relative; transform-origin:center center; }
+.slide { position:absolute; inset:0; background:var(--paper); border-radius:6px;
+  box-shadow:0 10px 40px rgba(0,0,0,.12); padding:56px 72px 64px; display:none; flex-direction:column; overflow:hidden; }
+.slide.active { display:flex; }
+.kicker { font-size:15px; letter-spacing:.12em; color:var(--accent); font-weight:700; margin-bottom:8px; }
+h1 { font-size:54px; line-height:1.2; margin:0 0 18px; }
+h2 { font-size:36px; margin:0 0 26px; line-height:1.3; }
+h3 { font-size:22px; margin:0 0 10px; color:var(--accent); }
+p, li { font-size:24px; line-height:1.6; }
+ul { margin:0; padding-left:1.2em; } li { margin:6px 0; }
+.small, .small li { font-size:20px; }
+.muted { color:var(--muted); }
+.en { color:var(--muted); font-size:.8em; }
+b, strong { color:var(--ink); }
+.hl { background:linear-gradient(transparent 60%, #fde7c2 60%); font-weight:700; }
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:36px; align-items:start; }
+.cols3 { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+.card { border:1.5px solid var(--line); border-radius:10px; padding:18px 22px; background:#fff; }
+.card.accent { border-color:var(--accent); background:var(--accent-soft); }
+.card.warn { border-color:var(--warn); background:var(--warn-soft); }
+.card p, .card li { font-size:21px; margin:4px 0; }
+.flow { display:flex; align-items:stretch; gap:10px; }
+.flow .step { flex:1; border:1.5px solid var(--accent); border-radius:10px; padding:14px 16px; background:#fff; }
+.flow .step > b { display:block; color:var(--accent); font-size:20px; margin-bottom:4px; }
+.flow .step > span { font-size:19px; line-height:1.5; display:block; }
+.flow .arrow { align-self:center; font-size:26px; color:var(--accent); }
+table { border-collapse:collapse; width:100%; font-size:21px; background:#fff; }
+th, td { border:1px solid var(--line); padding:10px 14px; text-align:left; }
+table.small { font-size:20px; }
+th { background:#f1eee7; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+tr.me td { background:var(--accent-soft); font-weight:700; }
+.big { font-size:64px; font-weight:800; color:var(--accent); line-height:1; }
+.big.bad { color:var(--bad); }
+.bars .row { display:grid; grid-template-columns:90px 1fr 90px; align-items:center; gap:14px; margin:14px 0; font-size:20px; }
+.bars .track { height:30px; background:#eeebe4; border-radius:4px; overflow:hidden; }
+.bars .fill { height:100%; background:var(--accent); }
+.bars .val { text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
+.note { font-size:16px; color:var(--muted); margin-top:auto; padding-top:10px; }
+.warnbox { border-left:5px solid var(--warn); background:var(--warn-soft); padding:10px 16px; font-size:17px; border-radius:4px; }
+details { border:1.5px solid var(--line); border-radius:8px; padding:10px 16px; margin:10px 0; background:#fff; font-size:22px; }
+summary { cursor:pointer; font-weight:700; }
+details p { font-size:19px; margin:8px 0 2px; color:var(--accent); }
+.src { position:absolute; left:72px; right:72px; bottom:18px; font-size:13px; color:var(--muted);
+  display:flex; justify-content:space-between; border-top:1px solid var(--line); padding-top:8px; }
+.src a { color:var(--accent); }
+.cover { justify-content:center; background:linear-gradient(135deg,#fbfaf7 55%,var(--accent-soft)); }
+.tag { display:inline-block; border:1.5px solid var(--accent); color:var(--accent); border-radius:999px; padding:3px 12px; font-size:15px; margin-right:8px; }
+#bar { position:fixed; left:0; top:0; height:4px; background:var(--accent); transition:width .2s; z-index:5; }
+#nav { position:fixed; right:16px; top:10px; display:flex; gap:8px; align-items:center; font-size:14px; color:var(--muted); z-index:5; }
+#nav button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:6px 12px; font-size:15px; cursor:pointer; }
+#nav a { color:var(--muted); margin-right:8px; }
+@media print { #nav,#bar { display:none; } #stage { position:static; display:block; }
+  #deck { transform:none!important; height:auto; } .slide { display:flex; position:relative; page-break-after:always; height:720px; box-shadow:none; } }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="stage"><div id="deck">
+<!-- title: HoVer 論文導讀｜多跳事實查核資料集 -->
+
+<section class="slide cover" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">論文導讀 · 1 / 2</div>
+  <h1>HoVer<br><span style="font-size:34px;font-weight:600">一份「要查好幾篇才查得出真假」的資料集</span></h1>
+  <p class="muted" style="font-size:20px">HoVer: A Dataset for Many-Hop Fact Extraction And Claim Verification<br>
+  Jiang, Bordia, Zhong, Dognin, Singh, Bansal · Findings of EMNLP 2020</p>
+  <p><span class="tag">資料集論文</span><span class="tag">事實查核</span><span class="tag">多跳推理</span></p>
+  <p class="small muted" style="margin-top:28px">讀完你會知道：這篇在做什麼、為什麼要做、怎麼做、發現了什麼、還缺什麼。<br>操作：← → 鍵或右下角按鈕換頁</p>
+</section>
+
+<section class="slide" data-wiki="wiki/concepts/fact-verification.md wiki/concepts/multi-hop-reasoning.md">
+  <div class="kicker">先備知識</div>
+  <h2>開始前，先懂兩個名詞</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>事實查核 <span class="en">Fact Verification</span></h3>
+      <p>給系統一句<b>說法（claim）</b>，它要：</p>
+      <ul><li>去找<b>證據</b></li><li>判斷說法<b>是否被證據支持</b></li></ul>
+      <p class="muted">典型流程：說法 → 找證據 → 判斷</p>
+    </div>
+    <div class="card accent">
+      <h3>多跳推理 <span class="en">Multi-hop Reasoning</span></h3>
+      <p>要<b>串起好幾份證據</b>才能判斷，而且後面的證據常常要靠前一份提供的線索才找得到。</p>
+      <p><b>跳數（hop）＝需要的證據文件數</b></p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/concepts/multi-hop-reasoning.md">
+  <div class="kicker">先備知識 · 例子</div>
+  <h2>多跳長什麼樣子？</h2>
+  <p>說法：「<b>1997 年 CART 賽季的年度新秀</b>開的車款，是 2006 年式推出的。」</p>
+  <div class="flow" style="margin:18px 0">
+    <div class="step"><b>第 1 跳</b><span>查「1997 CART 賽季」<br>→ 年度新秀是 Patrick Carpentier</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>第 2 跳</b><span>查「Patrick Carpentier」<br>→ 他開 Ford Fusion</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>第 3 跳</b><span>查「Ford Fusion」<br>→ 2006 年式推出 ✅</span></div>
+  </div>
+  <div class="warnbox">關鍵：原句裡<b>完全沒提到「Ford Fusion」</b>，光看原句幾乎找不到第 3 篇。要先找到前一篇，才知道下一篇要查什麼。</div>
+  <p class="note">例子改寫自 HoVer 原文表 1</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">① 背景：要做什麼</div>
+  <h2>做一份「多跳事實查核」資料集</h2>
+  <div class="flow" style="margin-bottom:26px">
+    <div class="step"><b>輸入</b><span>一句說法（claim）</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>任務 1：找證據</b><span>從多篇 Wikipedia 文章中抽出相關句子<br><span class="en">fact extraction</span></span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>任務 2：判斷</b><span>SUPPORTED（被支持）<br>或 NOT-SUPPORTED（不被支持）</span></div>
+  </div>
+  <ul>
+    <li>最多要串起 <span class="hl">4 篇</span> Wikipedia 文章</li>
+    <li>這是<b>資料集論文</b>：主要貢獻是「資料＋基準結果」，不是新模型</li>
+  </ul>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">② 動機：為什麼要做</div>
+  <h2>現有資料集，測不出真正的多跳能力</h2>
+  <div class="cols3">
+    <div class="card"><h3>真實需求</h3><p>社群媒體讓不實訊息變多，需要能自動找證據、再查證的系統</p></div>
+    <div class="card warn"><h3>FEVER 太單跳</h3><p><b>87% 以上</b>的說法只要<b>一篇</b> Wikipedia 文章就能查證</p></div>
+    <div class="card warn"><h3>多跳 QA 可走捷徑</h3><p>HotpotQA 等最多 2～3 篇，而且<b>單跳模型也能拿到好成績</b> → 靠字詞比對就夠</p></div>
+  </div>
+  <p style="margin-top:28px">👉 字詞比對的「捷徑」<span class="en">reasoning shortcut</span> 讓模型看起來會多跳，其實沒有。</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">③ 欲解決的問題</div>
+  <h2>理想的多跳題目應該長怎樣？</h2>
+  <div class="card accent" style="font-size:26px;padding:28px 32px">
+    <p style="font-size:26px;margin:0">至少有<b>一篇證據</b>，<span class="hl">光用說法本身做語意比對是找不到的</span>；<br>必須先找到前一篇文件，從中得到線索，才能找到下一篇。</p>
+  </div>
+  <p style="margin-top:28px">所以作者要的資料集有兩個條件：</p>
+  <ul>
+    <li>證據來自<b>最多 4 篇</b>文章</li>
+    <li>說法和部分證據<b>字面上不像</b>（降低語意重疊）</li>
+  </ul>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">④ 研究方法：怎麼做</div>
+  <h2>三階段造資料</h2>
+  <div class="flow">
+    <div class="step"><b>1. 說法建立</b><span>把 HotpotQA 的問答改寫成 <b>2-hop 說法</b>，再「替換實體」擴充成 3-hop、4-hop<br>3/4-hop 鼓勵寫成多句、用代名詞串接</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>2. 說法改寫</b><span>人工改寫（更具體／更籠統／否定）＋自動換字換實體<br>→ 做出<b>不被支持</b>的說法</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>3. 標註</b><span>原本三類：SUPPORTED / REFUTED / NOT ENOUGH INFO<br>後兩類連受訓標註員都分不清 → <b>合併成 NOT-SUPPORTED</b></span></div>
+  </div>
+  <p class="small" style="margin-top:22px">品質控管：只保留至少 3 位標註員意見一致的說法，Fleiss kappa = 0.63</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">④ 研究方法 · 關鍵技巧</div>
+  <h2>怎麼「增加跳數」？替換實體</h2>
+  <table>
+    <tr><th style="width:110px">跳數</th><th>說法（改寫示意）</th><th style="width:260px">多查了哪篇</th></tr>
+    <tr><td>2-hop</td><td>Patrick Carpentier 開 Ford Fusion，它是 2006 年式推出的</td><td>Ford Fusion、Patrick Carpentier</td></tr>
+    <tr class="me"><td>3-hop</td><td>把「Patrick Carpentier」換成「<b>1997 年 CART 賽季年度新秀</b>」</td><td>＋ 1997 CART 賽季</td></tr>
+  </table>
+  <p style="margin-top:22px">每換掉一個實體，就要<b>多查一篇</b>才知道它是誰 → 跳數 +1。<br>重複一次就變 4-hop。</p>
+  <p class="note">依原文表 1 的例子整理</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">⑤ 核心概念：用來處理什麼</div>
+  <h2>四個核心概念</h2>
+  <table>
+    <tr><th style="width:290px">概念</th><th>用來處理什麼問題</th></tr>
+    <tr><td><b>推理圖</b> reasoning graph</td><td>節點＝證據文件、邊＝超連結或比較；4-hop 有 <b>3 種</b>不同形狀，確保推理結構多樣</td></tr>
+    <tr><td><b>降低語意重疊</b></td><td>讓說法和部分證據字面不像，堵住字詞比對的捷徑</td></tr>
+    <tr><td><b>查核流水線</b> pipeline</td><td>文件檢索 → 句子挑選 → 說法判斷，分階段評估</td></tr>
+    <tr><td><b>HoVer Score</b></td><td>每篇證據文件都至少找到一句證據<b>且</b>標籤正確才算對 → 同時評估「找」和「判斷」</td></tr>
+  </table>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">⑥ 實驗設計</div>
+  <h2>資料規模與基準系統</h2>
+  <div class="cols">
+    <div>
+      <h3>資料</h3>
+      <ul class="small">
+        <li>共 <b>26,171</b> 則說法</li>
+        <li>train 18,171 / dev 4,000 / test 4,000</li>
+        <li>平均長度：2/3/4-hop 為 19.0 / 24.2 / 31.6 tokens（FEVER 只有 9.4）</li>
+      </ul>
+      <h3 style="margin-top:18px">指標</h3>
+      <ul class="small">
+        <li>文件／句子檢索：EM、F1</li>
+        <li>判斷：Accuracy</li>
+        <li>整體：HoVer Score</li>
+        <li>另抽 100 則請人類做，當對照</li>
+      </ul>
+    </div>
+    <div>
+      <h3>基準系統（仿 FEVER 頂尖系統）</h3>
+      <div class="card small"><b>1.</b> TF-IDF（bi-gram）找文件</div>
+      <div class="card small" style="margin-top:8px"><b>2.</b> BERT 重新排序前 20 篇</div>
+      <div class="card small" style="margin-top:8px"><b>3.</b> BERT 從前 5 篇挑句子</div>
+      <div class="card small" style="margin-top:8px"><b>4.</b> BERT 做 NLI 二元判斷</div>
+      <p class="small muted">注意：<b>一次檢索到底</b>，沒有迭代</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">⑦ 主要結果 1</div>
+  <h2>跳數越多，證據越難找齊</h2>
+  <p class="small">TF-IDF 取前 100 篇，能把<b>所有</b>證據文件都找到的比例（Hit@100，表 3）</p>
+  <div class="bars">
+    <div class="row"><span>2-hop</span><div class="track"><div class="fill" style="width:80.02%"></div></div><span class="val">80.02%</span></div>
+    <div class="row"><span>3-hop</span><div class="track"><div class="fill" style="width:39.18%"></div></div><span class="val">39.18%</span></div>
+    <div class="row"><span>4-hop</span><div class="track"><div class="fill" style="width:15.59%;background:var(--bad)"></div></div><span class="val">15.59%</span></div>
+  </div>
+  <ul class="small" style="margin-top:14px">
+    <li>只取前 5 篇時，4-hop 只剩 <b>0.38%</b></li>
+    <li>BERT 文件檢索 EM：30.1 → 5.6 → 0.6；人類：85.0 → 82.4 → 65.8（表 4）</li>
+  </ul>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">⑦ 主要結果 2</div>
+  <h2>瓶頸在「找」，不在「判斷」</h2>
+  <div class="cols3">
+    <div class="card accent"><p>給完整證據</p><div class="big">81.2%</div><p>判斷準確率</p></div>
+    <div class="card"><p>完全不給證據</p><div class="big" style="color:var(--muted)">63.7%</div><p>只看說法也猜得到一些</p></div>
+    <div class="card warn"><p>整條流程完全做對</p><div class="big bad">14.9%</div><p>HoVer Score（dev）<br>人類是 <b>81%</b></p></div>
+  </div>
+  <p style="margin-top:24px">👉 模型拿到證據時判斷得不錯，<span class="hl">真正卡住的是多跳時證據找不齊</span>。test set 的 HoVer Score 也只有 15.32%。</p>
+  <p class="note">⚠️ 原文表 7 兩列標籤與內文敘述不一致，這裡只引用內文明確的數字（14.9%、15.32%）</p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">⑧ 研究缺口與限制</div>
+  <h2>還缺什麼？</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>作者自己指出的</h3>
+      <ul class="small">
+        <li>需要<b>能做多跳推理的檢索方法</b></li>
+        <li>3/4-hop 標註成本、時間、品質控管急遽上升，第一版只用了 12k 個 HotpotQA 例子</li>
+      </ul>
+    </div>
+    <div class="card warn">
+      <h3>讀者可以再想的</h3>
+      <ul class="small">
+        <li>「被推翻」和「證據不足」合併了，系統分不出兩者</li>
+        <li>只用英文 Wikipedia，不是開放網路</li>
+        <li>baseline 一次檢索到底，<b>沒有迭代</b></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md wiki/overview.md">
+  <div class="kicker">⑨ 與其他論文的關係</div>
+  <h2>HoVer 提出問題，後面的論文接著解</h2>
+  <table class="small">
+    <tr><th style="width:250px">論文</th><th>接手處理的問題</th></tr>
+    <tr><td><b>Adaptive-RAG</b> (2024)</td><td>題目有難有易 → 先判斷難度，再決定不檢索／單步／多步</td></tr>
+    <tr><td><b>Adaptive-k</b> (2025)</td><td>前 5 篇和前 100 篇差很多 → 每次該放幾篇？</td></tr>
+    <tr><td><b>Papelo</b> @ FEVER 2024</td><td>證據要一跳一跳追 → 迭代追問，而且走到開放網路</td></tr>
+    <tr><td><b>AdaGATE</b> (2026, 預印本)</td><td>找齊又不灌水 → 追蹤缺口、在 token 預算內替換證據</td></tr>
+  </table>
+  <p class="small" style="margin-top:18px">👉 下一份簡報：<a href="adaptive-rag.html">Adaptive-RAG</a></p>
+</section>
+
+<section class="slide" data-wiki="wiki/sources/hover.md">
+  <div class="kicker">總結 · 自我檢測</div>
+  <h2>一句話記住這篇</h2>
+  <div class="card accent"><p style="font-size:23px;margin:0">HoVer 用「<b>替換實體來增加跳數</b>」造出最多 4-hop 的查核題，證明跳數越多、證據越難找齊，而<b>瓶頸在檢索，不在判斷</b>。</p></div>
+  <details><summary>Q1. HoVer 為什麼把 REFUTED 和 NOT ENOUGH INFO 合併？</summary><p>多跳說法中，連受訓標註員都分不清這兩類，所以改成二元分類。</p></details>
+  <details><summary>Q2. 為什麼說瓶頸在檢索？</summary><p>給完整證據時判斷有 81.2%，但整條流程完全做對只有 14.9%。</p></details>
+  <details><summary>Q3. HoVer Score 跟一般準確率差在哪？</summary><p>它要求每篇證據文件都至少找到一句證據，而且標籤也要對。</p></details>
+</section>
+
+</div></div>
+<div id="nav"><a href="../index.html">← 首頁</a><button id="prev" aria-label="上一張">◀</button><span id="count"></span><button id="next" aria-label="下一張">▶</button></div>
+<script>
+const REPO = "https://github.com/milli722/multihop-rag-wiki/blob/main/";
+const slides = [...document.querySelectorAll('.slide')];
+slides.forEach((s, i) => {
+  const refs = (s.dataset.wiki || '').split(/\s+/).filter(Boolean)
+    .map(p => `<a href="${REPO}${p}" target="_blank" rel="noopener">${p.replace('wiki/','')}</a>`).join('、');
+  const f = document.createElement('div'); f.className = 'src';
+  f.innerHTML = `<span>📘 Wiki 來源：${refs || '—'}</span><span></span>`;
+  s.appendChild(f);
+});
+let cur = Math.min(Math.max(parseInt(location.hash.slice(1)) - 1 || 0, 0), slides.length - 1);
+function show(n) {
+  cur = Math.min(Math.max(n, 0), slides.length - 1);
+  slides.forEach((s, i) => s.classList.toggle('active', i === cur));
+  document.getElementById('count').textContent = `${cur + 1} / ${slides.length}`;
+  document.getElementById('bar').style.width = `${(cur + 1) / slides.length * 100}%`;
+  history.replaceState(null, '', '#' + (cur + 1));
+}
+function fit() {
+  const k = Math.min(innerWidth / 1320, innerHeight / 760);
+  document.getElementById('deck').style.transform = `scale(${k})`;
+}
+addEventListener('keydown', e => {
+  if (['ArrowRight','PageDown',' ','Enter'].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  if (['ArrowLeft','PageUp','Backspace'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End') show(slides.length - 1);
+});
+document.getElementById('prev').onclick = () => show(cur - 1);
+document.getElementById('next').onclick = () => show(cur + 1);
+addEventListener('resize', fit); fit(); show(cur);
+</script>
+</body>
+</html>

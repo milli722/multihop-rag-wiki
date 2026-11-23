@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多跳檢索與事實查核 LLM Wiki</title>
+<style>
+:root { --ink:#1c2430; --muted:#5b6473; --line:#dcd7cc; --paper:#fbfaf7; --accent:#0f6b66; --soft:#e3f1ef; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif; line-height:1.7; }
+main { max-width:920px; margin:0 auto; padding:56px 24px 80px; }
+.kicker { color:var(--accent); font-weight:700; letter-spacing:.12em; font-size:14px; }
+h1 { font-size:38px; line-height:1.3; margin:6px 0 12px; }
+h2 { font-size:24px; margin:44px 0 14px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+p { margin:8px 0; }
+.muted { color:var(--muted); }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+a.card { display:block; text-decoration:none; color:inherit; background:#fff; border:1.5px solid var(--line);
+  border-radius:10px; padding:18px 20px; transition:border-color .15s, transform .15s; }
+a.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+a.card.main { border-color:var(--accent); background:var(--soft); }
+.card b { font-size:19px; display:block; }
+.card span { font-size:15px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; background:#fff; font-size:15px; }
+th, td { border:1px solid var(--line); padding:8px 12px; text-align:left; vertical-align:top; }
+th { background:#f1eee7; }
+pre { background:#fff; border:1.5px solid var(--line); border-radius:10px; padding:16px; font-size:14px; overflow-x:auto; line-height:1.5; }
+code { font-family:ui-monospace,Menlo,Consolas,monospace; }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">LLM WIKI 作業</div>
+  <h1>多跳檢索與事實查核 LLM Wiki</h1>
+  <p>用 Karpathy 的「LLM Wiki」模式，把 5 篇論文整理成一個<strong>會互相連結、會持續更新</strong>的知識庫，再<strong>只用這個 Wiki 當知識來源</strong>，產生教學 HTML 簡報。</p>
+  <p class="muted">主題：AI 在多跳情境下怎麼「找齊證據」再下結論，包括多跳事實查核、適應式檢索、迭代檢索與證據組裝。簡報的對象是要讀懂論文的碩士生。</p>
+
+  <h2>① 教學簡報</h2>
+  <div class="grid">
+    <a class="card main" href="slides/hover.html"><b>HoVer 論文導讀</b><span>多跳事實查核資料集（2020）· 15 張</span></a>
+    <a class="card main" href="slides/adaptive-rag.html"><b>Adaptive-RAG 論文導讀</b><span>依問題難度調整檢索策略（2024）· 15 張</span></a>
+  </div>
+  <p class="muted" style="font-size:14px">每張投影片的頁尾都有「📘 Wiki 來源」連結，可以點回對應的 Wiki 頁。</p>
+
+  <h2>② LLM Wiki</h2>
+  <div class="grid">
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/wiki/index.md"><b>Wiki 目錄 index.md</b><span>5 個論文頁＋5 個概念頁＋總覽</span></a>
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/wiki/overview.md"><b>總覽 overview.md</b><span>5 篇的主線、比較表、原文矛盾彙整</span></a>
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/wiki/log.md"><b>紀錄 log.md</b><span>每次 ingest 的討論與修改（先討論、後生成）</span></a>
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/CLAUDE.md"><b>Schema CLAUDE.md</b><span>Wiki 結構與流程規則（v2）</span></a>
+  </div>
+  <table style="margin-top:16px">
+    <tr><th>論文（ingest 5 篇）</th><th>一句話</th></tr>
+    <tr><td>HoVer (2020)</td><td>最多 4-hop 的查核資料集；跳越多，證據越難找齊</td></tr>
+    <tr><td>Adaptive-RAG (2024)</td><td>先判斷問題難度，再選不檢索／單步／多步</td></tr>
+    <tr><td>Adaptive-k (2025)</td><td>用相似度最大落差決定要放幾篇</td></tr>
+    <tr><td>Papelo @ FEVER 2024</td><td>LLM 依缺口迭代追問，在開放網路上查核</td></tr>
+    <tr><td>AdaGATE (2026, 預印本)</td><td>追蹤缺口，在 token 預算內替換證據</td></tr>
+  </table>
+
+  <h2>③ Loop / Graph 設計</h2>
+<pre><code>取得資料 ─▶ ┌──────── Ingest 迴圈（×5 篇）────────┐
+            │ 讀論文 → 列重點 ⇄ 與使用者討論         │
+            │   → 寫 Wiki → 數字核對★ → index/log   │
+            │   → Lint ──失敗──▶ 回到寫 Wiki          │
+            └───────────────────────────────────────┘
+                     │ 通過
+                     ▼
+            ┌──────── 簡報迴圈（×2 份）────────────┐
+            │ 查詢 Wiki → 產生投影片（標 data-wiki） │
+            │   → 來源與數字檢查 ──失敗──▶ 改投影片  │
+            │                      └─Wiki 缺─▶ 回 Ingest │
+            │   → build HTML → 截圖看版面★ ⇄ 改 CSS │
+            └───────────────────────────────────────┘
+                     ▼
+                  發佈        ★ = 實際執行後新增的節點（v2）</code></pre>
+  <div class="grid">
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/process/workflow.md"><b>流程圖與設計說明</b><span>哪些步驟重複、哪裡檢查、為什麼這樣設計</span></a>
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/process/check-log.md"><b>檢查紀錄</b><span>一次實際執行中發現的 7 個問題與處理</span></a>
+    <a class="card" href="https://github.com/milli722/multihop-rag-wiki/blob/main/process/reflection.md"><b>反思</b><span>最常出錯的節點、檢查往前移、workflow 修改</span></a>
+  </div>
+</main>
+</body>
+</html>

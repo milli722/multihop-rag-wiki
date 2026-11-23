@@ -30,3 +30,15 @@
 - **生成**：`sources/adaptive-k.md`、`sources/papelo-fever2024.md`（方法段落以迭代迴圈為主）、`sources/adagate.md`（frontmatter `credibility: low` ＋ 🔶 註記）、`overview.md`。
 - **更新**：5 個概念頁全部補上新論文；`adaptive-retrieval` 新增方法比較表與描述衝突註記；`iterative-retrieval` 新增「下一步查什麼怎麼決定」。
 - **回頭修正**：上一輪在 adaptive-rag 頁標「待確認」的跨論文連結 → 已確認 AdaGATE 確實把 Self-RAG、Adaptive-k 當比較對象；Adaptive-k 只在相關研究中提到 Self-RAG。
+
+## [2026-11-23] lint | 全 Wiki
+- 第 1 次：log.md 被誤判有「待 ingest／待確認」→ 修改 lint 規則（log 不檢查）。
+- 第 2 次：通過；執行 `--fix` 把雙中括號連結轉成 GitHub 可點的連結。
+
+## [2026-11-23] query → slides | HoVer、Adaptive-RAG
+- 依 index.md 找頁：`sources/hover.md`、`sources/adaptive-rag.md`，加上概念頁與 overview。
+- 每份 15 張；每張標 `data-wiki`。`check_slides.py` 兩份都 0 問題；另做自我測試，確認檢查器會抓到假數字。
+- 截圖發現 HoVer v1 有 4 個版面問題 → 修共用 CSS，兩份重新 build。
+
+## [2026-11-23] schema | CLAUDE.md v2
+- Ingest 加「數字核對」；跨論文連結只能寫已 ingest 的論文；簡報加「截圖看版面」；Wiki 缺資料要回 Ingest 補。
